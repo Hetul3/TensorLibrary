@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(SparseLibrary)
+project(sparse_lib)
 
 # xtensor
 find_package(xtensor REQUIRED)

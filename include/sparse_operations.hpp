@@ -12,4 +12,6 @@ namespace sparse_ops {
     double sparsity(const Tensor& tensor);
 }
 
+#include "sparse_operations_impl.hpp"
+
 #endif // SPARSE_OPERATIONS_HPP
