@@ -4,6 +4,7 @@
 #include "sparse_operations.hpp"
 #include <xtensor/xarray.hpp>
 #include <vector>
+#include <stdexcept>
 #include <tuple>
 
 namespace sparse_ops
@@ -83,6 +84,56 @@ namespace sparse_ops
             }
         }
         return {values, indices};
+    }
+
+    // check if the dimensions of the tensors are compatible for multiplication
+    template <typename T>
+    bool areTensorsMultiplicable(const xt::xarray<T> tensorA, const xt::xarray<T> tensorB)
+    {
+        // get shapes of the tensors
+        std::vector<size_t> shapeA = tensorA.shape();
+        std::vector<size_t> shapeB = tensorB.shape();
+
+        // Ensure valid dimensions
+        if (shapeA.empty() || shapeB.empty())
+        {
+            return false;
+        }
+
+        // Check if the last dimension of tensorA is equal to the first dimension of tensorB
+        if (shapeA[shapeA.size() - 1] != shapeB[0])
+        {
+            return false;
+        }
+
+        // Check for broadcasting
+        size_t dimA = shapeA.size();
+        size_t dimB = shapeB.size();
+        size_t maxDims = std::max(dimA, dimB);
+        for (size_t i = 1; i <= maxDims - 1; ++i)
+        {
+            size_t dimA_index = (i <= dimA - 1) ? shapeA[dimA - 1 - i] : 1;
+            size_t dimB_index = (i <= dimB - 1) ? shapeB[dimB - 1 - i] : 1;
+
+            if (dimA_index != dimB_index)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    auto _multiplyCompressedFormat(const xt::xarray<double> tensorA, const xt::xarray<double> tensorB) -> xt::xarray<double>
+    {
+        // convert tensorA and tensorB to CSR format
+        auto [valuesA, indicesA] = _toCompressedFormat(tensorA);
+        auto [valuesB, indicesB] = _toCompressedFormat(tensorB);
+
+        // check dimension compatibility
+        if(!areTensorsMultiplicable(tensorA, tensorB)) {
+            throw std::invalid_argument("Tensors are not compatible for multiplication");
+        }   
     }
 }
 
