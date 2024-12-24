@@ -50,12 +50,12 @@ namespace sparse_ops
         // storing all non zero values
         // linear list of all non zero values in the tensor
         std::vector<double> values;
-        // indecies of the non zero values for each dimension of the tensor
+        // indices of the non zero values for each dimension of the tensor
         /*
-        Size of indecies is # of dimensions * # of non zero values.
+        Size of indices is # of dimensions * # of non zero values.
         The nth vector shows the index of all the non zero values in the nth dimension.
         */
-        std::vector<std::vector<size_t>> indecies(tensor.dimension());
+        std::vector<std::vector<size_t>> indices(tensor.dimension());
 
         auto shape = tensor.shape();
         size_t = total_elements = tensor.size();
@@ -78,11 +78,11 @@ namespace sparse_ops
                 values.push_back(tensor(flat_index));
                 for (size_t dim = 0; dim < tensor.dimension(); ++dim)
                 {
-                    indecies[dim].push_back(multi_index[dim]);
+                    indices[dim].push_back(multi_index[dim]);
                 }
             }
         }
-        return {values, indecies};
+        return {values, indices};
     }
 }
 
