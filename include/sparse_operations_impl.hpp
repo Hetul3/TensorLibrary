@@ -44,6 +44,49 @@ namespace sparse_ops
         return static_cast<double>(zero_count()) / tensor.size();
     }
 
+    // multiplication of two tensors in compressed format
+    auto multiplyCompressedFormat(const xt::xarray<double> tensorA, const xt::xarray<double> tensorB) -> xt::xarray<double>
+    {
+        // Convert tensorA and tensorB to CSR format
+        auto [valuesA, indicesA] = _toCompressedFormat(tensorA);
+        auto [valuesB, indicesB] = _toCompressedFormat(tensorB);
+
+        // Check dimension compatibility
+        if (!_areTensorsMultiplicable(tensorA, tensorB))
+        {
+            throw std::invalid_argument("Tensors are not compatible for multiplication");
+        }
+        // Resulting shape
+        std::vector<size_t> resultShape(tensorA.shape().begin(), tensorA.shape().end());
+        resultShape.back() = tensorB.shape().back();
+
+        // Resulting tensor
+        xt::xarray<double> result = xt::zeros<double>(resultShape);
+
+        // Multiply the tensors in compressed format
+        size_t numNonZerosValuesA = valuesA.size();
+        size_t numNonZerosValuesB = valuesB.size();
+
+        for (size_t i = 0; i < numNonZerosValuesA; ++i)
+        {
+            for (size_t j = 0; j < numNonZerosValuesB; ++j)
+            {
+                // Match the inner dimensions: indicesA.last = indicesB.first
+                if (indicesA.back()[i] == indicesB.front()[j])
+                {
+                    std::vector<size_t> resultIndex = indicesA[i];
+                    resultIndex.back() = indicesB.back()[j];
+
+                    result(resultIndex) += valuesA[i] * valuesB[j];
+                }
+            }
+        }
+        return result;
+    }
+} // namespace sparse_ops
+
+namespace
+{
     // Private helper to convert to xarray to CSR format, generalized for any tensor shape
     template <typename Tensor>
     auto _toCompressedFormat(const Tensor &tensor) -> std::tuple<std::vector<double>, std::vector<std::vector<size_t>>>
@@ -65,7 +108,7 @@ namespace sparse_ops
             // Map flat index to dimensional index, ex. index 3 in (2,3) tensor is (1,0)
             std::vector<size_t> multi_index(tensor.dimension());
             size_t temp = flat_index;
-            // figure out the multi index from the flat index
+            // Figure out the multi index from the flat index
             for (size_t dim = tensor.dimension(); dim > 0; --dim)
             {
                 size_t current_dim = dim - 1;
@@ -87,8 +130,8 @@ namespace sparse_ops
     }
 
     // check if the dimensions of the tensors are compatible for multiplication
-    template <typename T>
-    bool areTensorsMultiplicable(const xt::xarray<T> tensorA, const xt::xarray<T> tensorB)
+    template <typename Tensor>
+    bool _areTensorsMultiplicable(const xt::xarray<Tensor> tensorA, const xt::xarray<Tensor> tensorB)
     {
         // get shapes of the tensors
         std::vector<size_t> shapeA = tensorA.shape();
@@ -122,18 +165,6 @@ namespace sparse_ops
         }
 
         return true;
-    }
-
-    auto _multiplyCompressedFormat(const xt::xarray<double> tensorA, const xt::xarray<double> tensorB) -> xt::xarray<double>
-    {
-        // convert tensorA and tensorB to CSR format
-        auto [valuesA, indicesA] = _toCompressedFormat(tensorA);
-        auto [valuesB, indicesB] = _toCompressedFormat(tensorB);
-
-        // check dimension compatibility
-        if(!areTensorsMultiplicable(tensorA, tensorB)) {
-            throw std::invalid_argument("Tensors are not compatible for multiplication");
-        }   
     }
 }
 

@@ -3,6 +3,7 @@
 
 #include <xtensor/xarray.hpp>
 #include <xtensor/xtensor.hpp>
+
 namespace sparse_ops {
     // operations to check if a tensor/array is sparse based on threshold, and operation to return sparsity percentage
     template <typename Tensor>
@@ -10,6 +11,18 @@ namespace sparse_ops {
 
     template <typename Tensor>
     double sparsity(const Tensor& tensor);
+
+    auto multiplyCompressedFormat(const xt::xarray<double> tensorA, const xt::xarray<double> tensorB) -> xt::xarray<double>;
+}
+
+namespace {
+    // helper functions
+    template <typename Tensor>
+    auto _toCompressedFormat(const Tensor& tensor) -> std::tuple<std::vector<double>, std::vector<std::vector<size_t>>>;
+
+    template <typename Tensor>
+    bool _areTensorsMultiplicable(const xt::xarray<Tensor> tensorA, const xt::xarray<Tensor> tensorB);
+
 }
 
 #include "sparse_operations_impl.hpp"
