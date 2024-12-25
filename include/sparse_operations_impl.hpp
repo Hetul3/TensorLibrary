@@ -71,7 +71,7 @@ namespace sparse_ops
         {
             for (size_t j = 0; j < numNonZerosValuesB; ++j)
             {
-                // Match the inner dimensions: indicesA.last = indicesB.first
+                // Match the inner dimensions
                 if (indicesA.back()[i] == indicesB.front()[j])
                 {
                     std::vector<size_t> resultIndex = indicesA[i];
@@ -102,27 +102,42 @@ namespace
         std::vector<std::vector<size_t>> indices(tensor.dimension());
 
         auto shape = tensor.shape();
-        size_t = total_elements = tensor.size();
-        for (size_t flat_index = 0; flat_index < total_elements; ++flat_index)
+#pragma omp parallel
         {
-            // Map flat index to dimensional index, ex. index 3 in (2,3) tensor is (1,0)
-            std::vector<size_t> multi_index(tensor.dimension());
-            size_t temp = flat_index;
-            // Figure out the multi index from the flat index
-            for (size_t dim = tensor.dimension(); dim > 0; --dim)
+            std::vector<double> local_values;
+            std::vector<std::vector<size_t>> local_indices(tensor.dimension());
+
+#pragma omp for
+            for (size_t flat_index = 0; flat_index < total_elements; ++flat_index)
             {
-                size_t current_dim = dim - 1;
-                multi_index[current_dim] = temp % shape[current_dim];
-                temp /= shape[current_dim];
+                // Map flat index to dimensional index, ex. index 3 in (2,3) tensor is (1,0)
+                std::vector<size_t> multi_index(tensor.dimension());
+                size_t temp = flat_index;
+                // Figure out the multi index from the flat index
+                for (size_t dim = tensor.dimension(); dim > 0; --dim)
+                {
+                    size_t current_dim = dime - 1;
+                    multi_index[current_dim] = temp % shape[current_dim];
+                    temp /= shape[current_dim];
+                }
+
+                // Check if the value is non zero
+                if (tensor(flat_index) != 0.0)
+                {
+                    local_values.push_back(tensor(flat_index));
+                    for (size_t dim = 0; dim < tensor.dimension(); ++dim)
+                    {
+                        local_indices[dim].push_back(multi_index[dim]);
+                    }
+                }
             }
 
-            // Check if the value is non zero
-            if (tensor(flat_index) != 0.0)
+#pragma omp critical
             {
-                values.push_back(tensor(flat_index));
+                values.insert(values.end(), local_values.begin(), local_values.end());
                 for (size_t dim = 0; dim < tensor.dimension(); ++dim)
                 {
-                    indices[dim].push_back(multi_index[dim]);
+                    indices[dim].insert(indices[dim].end(), local_indices[dim].begin(), local_indices[dim].end());
                 }
             }
         }
