@@ -45,7 +45,7 @@ namespace sparse_ops
     }
 
     // multiplication of two tensors in compressed format
-    auto multiplyCompressedFormat(const xt::xarray<double> tensorA, const xt::xarray<double> tensorB) -> xt::xarray<double>
+    auto multiplyCompressedFormat(const xt::xarray<double> &tensorA, const xt::xarray<double> &tensorB) -> xt::xarray<double>
     {
         // Convert tensorA and tensorB to CSR format
         auto [valuesA, indicesA] = _toCompressedFormat(tensorA);
@@ -130,12 +130,11 @@ namespace
     }
 
     // check if the dimensions of the tensors are compatible for multiplication
-    template <typename Tensor>
-    bool _areTensorsMultiplicable(const xt::xarray<Tensor> tensorA, const xt::xarray<Tensor> tensorB)
+    bool _areTensorsMultiplicable(const xt::xarray<double> &tensorA, const xt::xarray<double> &tensorB)
     {
         // get shapes of the tensors
-        std::vector<size_t> shapeA = tensorA.shape();
-        std::vector<size_t> shapeB = tensorB.shape();
+        std::vector<size_t> shapeA(tensorA.shape().begin(), tensorA.shape().end());
+        std::vector<size_t> shapeB(tensorB.shape().begin(), tensorB.shape().end());
 
         // Ensure valid dimensions
         if (shapeA.empty() || shapeB.empty())
@@ -144,7 +143,7 @@ namespace
         }
 
         // Check if the last dimension of tensorA is equal to the first dimension of tensorB
-        if (shapeA[shapeA.size() - 1] != shapeB[0])
+        if (shapeA.back() != shapeB.front())
         {
             return false;
         }
@@ -153,6 +152,7 @@ namespace
         size_t dimA = shapeA.size();
         size_t dimB = shapeB.size();
         size_t maxDims = std::max(dimA, dimB);
+
         for (size_t i = 1; i <= maxDims - 1; ++i)
         {
             size_t dimA_index = (i <= dimA - 1) ? shapeA[dimA - 1 - i] : 1;
@@ -165,6 +165,54 @@ namespace
         }
 
         return true;
+    }
+
+    /*
+    Without hardware and processing optimizations (will be considered and implemented later):
+    xarray multiplication for dense tensors follows a normal routine for matrix multiplication.
+    For higher dimensional tensors, it performs tensor constraction algorithms to convert the tensor
+    into matrices and perform matrix multiplication before reshaping to the higher dimensional result.
+
+    For a matrix multiplication of A (MxK) and B (KxN), the time complexity is O(M*K*N).
+    For a higher dimensional tensor, with tensor contraction, the runtime is based on size of the resulting tensor,
+    O(size of resulting tensor + reshaping overhead)
+
+    For sparse tensor implementation, the runtime is based on converting to CSR format and multiplication of non zero values.
+    Runtime becomes O(size of A + size of B + nnz(A) * nnz(B)), making it faster for cases where the tensors are very sparse and
+    the size of the resulting tensor is much greater than the size of the input tensors. nnz << size of tensor, say 0.05 * size of the tensor.
+    */
+
+    bool _worthUsingSparse(const xt::xarray<double> &tensorA, const xt::xarray<double> &tensorB)
+    {
+        // calculating terms of sparsity runtime calculation
+        double sparsityA = sparse_ops::sparsity(tensorA);
+        double sparsityB = sparse_ops::sparsity(tensorB);
+
+        size_t total_elementsA = tensorA.size();
+        size_t nnzA = static_cast<size_t>(total_elementsA * sparsityA);
+
+        size_t total_elementsB = tensorB.size();
+        size_t nnzB = static_cast<size_t>(total_elementsB * sparsityB);
+
+        size_t sparse_runtime = total_elementsA + total_elementsB + nnzA * nnzB;
+
+        // calculating terms for the dense runtime calculation
+
+        // finding resulting tensor size
+        auto shapeA = tensorA.shape();
+        auto shapeB = tensorB.shape();
+
+        std::vector<size_t> resultShape;
+        resultShape.insert(resultShape.end(), shapeA.begin(), shapeA.end() - 1);
+        resultShape.insert(resultShape.end(), shapeB.begin() + 1, shapeB.end());
+
+        size_t resultSize = 1;
+        for (const auto &dim : resultShape)
+        {
+            resultSize *= dim;
+        }
+
+        return sparse_runtime < resultSize;
     }
 }
 
