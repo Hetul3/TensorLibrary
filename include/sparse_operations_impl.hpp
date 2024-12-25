@@ -6,6 +6,7 @@
 #include <vector>
 #include <stdexcept>
 #include <tuple>
+#include <unordered_map>
 
 namespace sparse_ops
 {
@@ -67,20 +68,27 @@ namespace sparse_ops
         size_t numNonZerosValuesA = valuesA.size();
         size_t numNonZerosValuesB = valuesB.size();
 
+        std::unordered_map<size_t, std::vector<size_t>> indexMapB;
+        for (size_t j = 0; j < numNonZerosValuesB; ++j)
+        {
+            indexMapB[indicesB.front()[j]].push_back(j);
+        }
+
         for (size_t i = 0; i < numNonZerosValuesA; ++i)
         {
-            for (size_t j = 0; j < numNonZerosValuesB; ++j)
+            // Find matching inner dimensions
+            auto it = indexMapB.find(indicesA.back()[i]);
+            if (it != indexMapB.end())
             {
-                // Match the inner dimensions
-                if (indicesA.back()[i] == indicesB.front()[j])
+                for (size_t j : it->second)
                 {
                     std::vector<size_t> resultIndex = indicesA[i];
                     resultIndex.back() = indicesB.back()[j];
-
                     result(resultIndex) += valuesA[i] * valuesB[j];
                 }
             }
         }
+        
         return result;
     }
 } // namespace sparse_ops
