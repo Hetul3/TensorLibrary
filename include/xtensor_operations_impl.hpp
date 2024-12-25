@@ -1,7 +1,7 @@
-#ifndef SPARSE_OPERATIONS_IMPL_HPP
-#define SPARSE_OPERATIONS_IMPL_HPP
+#ifndef XTENSOR_OPERATIONS_IMPL_HPP
+#define XTENSOR_OPERATIONS_IMPL_HPP
 
-#include "sparse_operations.hpp"
+#include "xtensor_operations.hpp"
 #include <xtensor/xarray.hpp>
 #include <vector>
 #include <stdexcept>
@@ -242,4 +242,4 @@ namespace
     }
 }
 
-#endif // SPARSE_OPERATIONS_IMPL_HPP
+#endif // XTENSOR_OPERATIONS_IMPL_HPP

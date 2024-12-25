@@ -1,4 +1,4 @@
-#include "sparse_operations.hpp"
+#include "xtensor_operations.hpp"
 
 namespace sparse_ops {
     // Explicit template instantiations for common types

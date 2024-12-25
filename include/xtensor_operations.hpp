@@ -25,6 +25,6 @@ namespace {
     bool _worthUsingSparse(const xt::xarray<double>& tensorA, const xt::xarray<double>& tensorB);
 }
 
-#include "sparse_operations_impl.hpp"
+#include "xtensor_operations_impl.hpp"
 
-#endif // SPARSE_OPERATIONS_HPP
+#endif // XTENSOR_OPERATIONS_HPP
