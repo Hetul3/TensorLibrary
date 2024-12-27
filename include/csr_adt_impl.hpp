@@ -19,7 +19,7 @@ CSR<T>::CSR(const xt::xarray<T> &tensor)
 
             auto flat_index = std::distance(tensor.begin(), i);
             std::vector multi_index(tensor.shape().size());
-            auto = xt::strides(tensor.shape());
+            auto strides = xt::strides(tensor.shape());
             for (auto dim = 0; dim < tensor.shape().size(); ++dim)
             {
                 multi_index[dim] = flat_index / strides[dim];
