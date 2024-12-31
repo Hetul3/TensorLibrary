@@ -82,17 +82,25 @@ namespace sparse_ops
             {
                 for (size_t j : it->second)
                 {
-                    std::vector<size_t> resultIndex = indicesA[i];
-                    resultIndex.back() = indicesB.back()[j];
+                    // create the resulting index with broadcasting logic
+                    std::vector<size_t> resultIndex(resultShape.size());
+                    for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                    {
+                        size_t indexA = dim < indicesA.size() ? indicesA[dim][i] : 0;
+                        size_t indexB = dim < indicesB.size() ? indicesB[dim][j] : 0;
+
+                        // Apply broadcasting
+                        resultIndex[dim] = (tensorA.shape()[dim] == 1) ? indexB : (tensorB.shape()[dim] == 1) ? indexA
+                                                                                                              : indexA;
+                    }
+
                     result(resultIndex) += valuesA[i] * valuesB[j];
                 }
             }
         }
-        
+
         return result;
     }
-    
-
 
 } // namespace sparse_ops
 
