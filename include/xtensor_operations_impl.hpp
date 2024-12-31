@@ -3,7 +3,6 @@
 
 #include "xtensor_operations.hpp"
 #include <xtensor/xarray.hpp>
-#include <vector>
 #include <stdexcept>
 #include <tuple>
 #include <unordered_map>
@@ -53,10 +52,12 @@ namespace sparse_ops
         auto [valuesB, indicesB] = _toCompressedFormat(tensorB);
 
         // Check dimension compatibility
-        if (!_areTensorsMultiplicable(tensorA, tensorB))
+        TensorMultiplicabilityAnalysisStruct analysis = _areTensorsMultiplicable(tensorA, tensorB);
+        if (!analysis.isMultiplcable)
         {
             throw std::invalid_argument("Tensors are not compatible for multiplication");
         }
+
         // Resulting shape
         std::vector<size_t> resultShape(tensorA.shape().begin(), tensorA.shape().end());
         resultShape.back() = tensorB.shape().back();
@@ -82,19 +83,30 @@ namespace sparse_ops
             {
                 for (size_t j : it->second)
                 {
-                    // create the resulting index with broadcasting logic
-                    std::vector<size_t> resultIndex(resultShape.size());
-                    for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                    if (analysis.requiresBroadcasting)
                     {
-                        size_t indexA = dim < indicesA.size() ? indicesA[dim][i] : 0;
-                        size_t indexB = dim < indicesB.size() ? indicesB[dim][j] : 0;
+                        // create the resulting index with broadcasting logic
+                        std::vector<size_t> resultIndex(resultShape.size());
+                        for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                        {
+                            size_t indexA = dim < indicesA.size() ? indicesA[dim][i] : 0;
+                            size_t indexB = dim < indicesB.size() ? indicesB[dim][j] : 0;
 
-                        // Apply broadcasting
-                        resultIndex[dim] = (tensorA.shape()[dim] == 1) ? indexB : (tensorB.shape()[dim] == 1) ? indexA
-                                                                                                              : indexA;
+                            // Apply broadcasting
+                            resultIndex[dim] = (tensorA.shape()[dim] == 1) ? indexB : (tensorB.shape()[dim] == 1) ? indexA
+                                                                                                                  : indexA;
+                        }
+
+                        result(resultIndex) += valuesA[i] * valuesB[j];
                     }
+                    else
+                    {
+                        // No broadcasting logic required, direct indices use and faster operation
+                        std::vector<size_t> resultIndex = indicesA[i];
+                        resultIndex.back() = indicesB.back()[j];
 
-                    result(resultIndex) += valuesA[i] * valuesB[j];
+                        result(resultIndex) += valuesA[i] * valuesB[j];
+                    }
                 }
             }
         }
@@ -164,22 +176,26 @@ namespace
     }
 
     // check if the dimensions of the tensors are compatible for multiplication
-    bool _areTensorsMultiplicable(const xt::xarray<double> &tensorA, const xt::xarray<double> &tensorB)
+    TensorMultiplicabilityAnalysisStruct _areTensorsMultiplicable(const xt::xarray<double> &tensorA, const xt::xarray<double> &tensorB)
     {
         // get shapes of the tensors
         std::vector<size_t> shapeA(tensorA.shape().begin(), tensorA.shape().end());
         std::vector<size_t> shapeB(tensorB.shape().begin(), tensorB.shape().end());
 
+        TensorMultiplicabilityAnalysisStruct result = {true, false};
+
         // Ensure valid dimensions
         if (shapeA.empty() || shapeB.empty())
         {
-            return false;
+            result.isMultiplcable = false;
+            return result;
         }
 
         // Check if the last dimension of tensorA is equal to the first dimension of tensorB
         if (shapeA.back() != shapeB.front())
         {
-            return false;
+            result.isMultiplcable = false;
+            return result;
         }
 
         // Check for broadcasting
@@ -192,13 +208,19 @@ namespace
             size_t dimA_index = (i <= dimA - 1) ? shapeA[dimA - 1 - i] : 1;
             size_t dimB_index = (i <= dimB - 1) ? shapeB[dimB - 1 - i] : 1;
 
-            if (dimA_index != dimB_index)
+            if (dimA_index != dimB_index && dimA_index != 1 && dimB_index != 1)
             {
-                return false;
+                result.isMultiplcable = false;
+                return result;
+            }
+
+            if (dimA_index == 1 || dimB_index == 1)
+            {
+                result.requiresBroadcasting = true;
             }
         }
 
-        return true;
+        return result;
     }
 
     /*

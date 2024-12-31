@@ -36,11 +36,13 @@ const std::vector<T> &CSR<T>::getValues() const
 {
     return values;
 }
+
 template <typename T>
 const std::vector<std::vector<size_t>> &CSR<T>::getIndices() const
 {
     return indices;
 }
+
 template <typename T>
 const std::vector<size_t> &CSR<T>::getShape() const
 {
