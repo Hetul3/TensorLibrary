@@ -3,6 +3,7 @@
 
 #include "csr_operations.hpp"
 #include <unordered_map>
+#include <tuple>
 
 // convert CSR object to an xarray
 template <typename T>
@@ -30,17 +31,19 @@ CSR<T> DenseToCSR(const xt::xarray<T> &tensor)
 template <typename T>
 CSR<T> CSRMult(const CSR<T> &csr1, const CSR<T> &csr2)
 {
-    if (!_areMultiplicable(csr1, csr2))
+    // Check for compatibility, <isMultiplicable, isBroadcastingRequired>
+    auto analysis = _areMultiplicable(csr1, csr2);
+    if (!std::get<0>(analysis))
     {
-        throw std::invalid_argument("CSR objects are not compatible for multiplication");
+        throw std::invalid_argument("Tensors are not compatible for multiplication");
     }
 
     // Resulting shape
     std::vector<size_t> resultShape(csr1.shape);
     resultShape.back() = csr2.shape.back();
 
-    // result storage
-    std::vector<double> resultValues;
+    // Result storage
+    std::vector<T> resultValues;
     std::vector<std::vector<size_t>> resultIndices(resultShape.size());
 
     // Map csr2 indices for quick lookup
@@ -51,8 +54,8 @@ CSR<T> CSRMult(const CSR<T> &csr1, const CSR<T> &csr2)
         indexMapB[key].push_back(i);
     }
 
-    // Multiply non zero values
-    for (szie_t i = 0; i < csr1.values.size(); ++i)
+    // Multiply non-zero values
+    for (size_t i = 0; i < csr1.values.size(); ++i)
     {
         size_t key = csr1.indices.back()[i];
 
@@ -62,24 +65,40 @@ CSR<T> CSRMult(const CSR<T> &csr1, const CSR<T> &csr2)
         {
             for (size_t j : it->second)
             {
-                // Combine indices with broadcasting logic
-                std::vector<size_t> resultIndex(resultShape.size());
-                for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                if (std::get<1>(analysis))
                 {
-                    size_t indexA = dim < csr1.indices.size() ? csr1.indices[dim][i] : 0;
-                    size_t indexB = dim < csr2.indices.size() ? csr2.indices[dim][j] : 0;
+                    // Requires broadcasting logic, combine indices
+                    std::vector<size_t> resultIndex(resultShape.size());
+                    for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                    {
+                        size_t indexA = dim < csr1.indices.size() ? csr1.indices[dim][i] : 0;
+                        size_t indexB = dim < csr2.indices.size() ? csr2.indices[dim][j] : 0;
 
-                    // Apply broadcasting
-                    resultIndex[dim] = (csr1.shape[dim] == 1) ? indexB : (csr2.shape[dim] == 1) ? indexA
-                                                                                                : indexA;
+                        // Apply broadcasting
+                        resultIndex[dim] = (csr1.shape[dim] == 1) ? indexB : (csr2.shape[dim] == 1) ? indexA
+                                                                                                    : indexA;
+                    }
+
+                    // Compute the value and store it
+                    T value = csr1.values[i] * csr2.values[j];
+                    resultValues.push_back(value);
+                    for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                    {
+                        resultIndices[dim].push_back(resultIndex[dim]);
+                    }
                 }
-
-                // Compute the value and store it
-                T value = csr1.values[i] * csr2.values[j];
-                resultValues.push_back(value);
-                for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                else
                 {
-                    resultIndices[dim].push_back(resultIndex[dim]);
+                    // No broadcasting required, direct indices use and faster operations
+                    std::vector<size_t> resultIndex = csr1.indices[i];
+                    resultIndex.back() = csr2.indices.back()[j];
+
+                    T value = csr1.values[i] * csr2.values[j];
+                    resultValues.push_back(value);
+                    for (size_t dim = 0; dim < resultShape.size(); ++dim)
+                    {
+                        resultIndices[dim].push_back(resultIndex[dim]);
+                    }
                 }
             }
         }
@@ -92,17 +111,25 @@ CSR<T> CSRMult(const CSR<T> &csr1, const CSR<T> &csr2)
 namespace
 {
     template <typename T>
-    bool _areMultiplicable(const CSR<T> &csr1, const CSR<T> &csr2)
+    std::tuple<bool, bool> _areMultiplicable(const CSR<T> &csr1, const CSR<T> &csr2)
     {
+        // Ensure valid dimensions
+        if (csr1.shape.empty() || csr2.shape.empty())
+        {
+            return {false, false};
+        }
+
         if (csr1.shape.back() != csr2.shape.front())
         {
-            return false;
+            return {false, false};
         }
 
         // check for broadcasting
         size_t dimA = csr1.shape.size();
         size_t dimB = csr2.shape.size();
         size_t maxDims = std::max(dimA, dimB);
+
+        std::tuple<bool, bool> result = {true, false};
 
         for (size_t i = 1; i < maxDims; ++i)
         {
@@ -111,12 +138,16 @@ namespace
 
             if (dimA_index != 1 && dimB_index != 1 && dimA_index != dimB_index)
             {
-                return false;
+                return {false, false};
+            }
+
+            if (dimA_index == 1 || dimB_index == 1)
+            {
+                result.second = true;
             }
         }
-        return true;
+        return result;
     }
-
 }
 
 #endif // CSR_OPERATIONS_IMPL_HPP
